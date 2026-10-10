@@ -3,10 +3,16 @@ name: ci
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  REGISTRY: australia-southeast1-docker.pkg.dev
+  REPO_PATH: field-engineering-apac/kasunt
 
 jobs:
   lint-test:
@@ -29,3 +35,79 @@ jobs:
           done
       - run: ruff check .
       - run: pytest -q
+
+  build-push:
+    name: Build and push (${{ matrix.image }})
+    needs: [lint-test]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dir: mcp-servers/repo-server
+            image: repo-server
+          - dir: agents/repo-agent
+            image: repo-agent
+          - dir: agents/release-manager-agent
+            image: release-manager-agent
+          - dir: agents/deploy-agent
+            image: deploy-agent
+          - dir: agents/github-agent
+            image: github-agent
+    permissions:
+      contents: read
+      id-token: write # required for GCP Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+      - name: Compute tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          IMAGE="${REGISTRY}/${REPO_PATH}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}"
+          docker build -f "${{ matrix.dir }}/Dockerfile" -t "$IMAGE" .
+          docker push "$IMAGE"
+
+  create-release:
+    needs: [build-push]
+    if: success() && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or update release with image locations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          IMAGES=$(cat <<EOF
+          - \`${REGISTRY}/${REPO_PATH}/repo-server:${GITHUB_REF_NAME}\`
+          - \`${REGISTRY}/${REPO_PATH}/repo-agent:${GITHUB_REF_NAME}\`
+          - \`${REGISTRY}/${REPO_PATH}/release-manager-agent:${GITHUB_REF_NAME}\`
+          - \`${REGISTRY}/${REPO_PATH}/deploy-agent:${GITHUB_REF_NAME}\`
+          - \`${REGISTRY}/${REPO_PATH}/github-agent:${GITHUB_REF_NAME}\`
+          EOF
+          )
+          # release.yml may have already created this release (without images, which
+          # don't exist until build-push above runs) - append rather than fail if so,
+          # instead of clobbering its auto-generated notes.
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            EXISTING=$(gh release view "${GITHUB_REF_NAME}" --json body -q .body)
+            printf '%s\n\n## Docker Images\n\n%s\n' "$EXISTING" "$IMAGES" | gh release edit "${GITHUB_REF_NAME}" --notes-file -
+          else
+            printf '## Docker Images\n\n%s\n' "$IMAGES" | gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --generate-notes --notes-file -
+          fi
