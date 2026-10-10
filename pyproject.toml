@@ -1,0 +1,13 @@
+[project]
+name = "ops-agents"
+version = "0.1.0"
+description = "Operational agents and MCP servers for the agentgateway auth-pillar demo"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["agents", "mcp-servers"]
+testpaths = ["agents", "mcp-servers"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
