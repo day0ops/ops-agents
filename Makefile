@@ -8,6 +8,6 @@ test:
 lint:
 	ruff check .
 build:
-	docker build -t $(REGISTRY)/$(IMAGE):$(TAG) $(SVC)
+	docker build -t $(REGISTRY)/$(IMAGE):$(TAG) -f $(SVC)/Dockerfile .
 push:
 	docker push $(REGISTRY)/$(IMAGE):$(TAG)
