@@ -7,6 +7,12 @@ requires-python = ">=3.10"
 [tool.pytest.ini_options]
 pythonpath = ["agents", "mcp-servers"]
 testpaths = ["agents", "mcp-servers"]
+# Every agent's tests/ dir has no __init__.py and they all share the basename
+# test_main.py - pytest's default "prepend" import mode can only ever resolve
+# one bare "test_main" module across a whole collection run, so collecting
+# from the repo root (what CI does) errors on the 2nd+ one with "import file
+# mismatch". importlib mode resolves each by its real path instead.
+addopts = "--import-mode=importlib"
 
 [tool.ruff]
 line-length = 100
