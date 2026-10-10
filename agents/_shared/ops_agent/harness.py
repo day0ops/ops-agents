@@ -1,5 +1,5 @@
 """FastAPI harness serving an ADK agent as POST /run + GET /health, threading
-a per-request bearer token into session state so an MCPToolset header_provider
+a per-request bearer token into session state so an McpToolset header_provider
 can attach it to each MCP call. ADK 2.11.0 API verified live against the
 installed package (InMemoryRunner, run_async, types.Content, create_session
 all match the documented shape used below).
@@ -30,7 +30,7 @@ class RunRequest(BaseModel):
 
 
 async def bearer_header_provider(ctx) -> dict:
-    """Reusable MCPToolset header_provider: attaches the bearer token placed
+    """Reusable McpToolset header_provider: attaches the bearer token placed
     in session state by build_app (see agent_factory contract above) as the
     Authorization header on every MCP tool call for this session."""
     token = ctx.state.get("bearer_token", "")
