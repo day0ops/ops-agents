@@ -1,0 +1,7 @@
+google-adk==2.11.0
+mcp==1.30.0
+# fastapi/requests floors are set by google-adk 2.11.0's own pinned deps
+# (fastapi>=0.133,<1, requests>=2.32.4,<3) - confirmed via pip install.
+fastapi==0.133.0
+uvicorn==0.34.0
+requests==2.32.4
