@@ -6,9 +6,9 @@ import os
 
 import requests
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
 from ops_agent import sts
 from ops_agent.harness import build_app
+from ops_agent.openai_model import OpenAIModel
 
 INSTRUCTION = (
     "You are the Release Manager Agent. When asked about a deploy, use the "
@@ -36,7 +36,11 @@ def build_agent(token: str, mode: str):
         return ask_deploy_agent(query, delegated_token)
 
     agent = LlmAgent(
-        model=LiteLlm(model="openai/gpt-4o-mini", api_base=os.environ["LLM_BASE_URL"]),
+        model=OpenAIModel(
+            model=os.environ.get("MODEL", "gpt-4o-mini"),
+            api_base=os.environ["LLM_BASE_URL"],
+            api_key=os.environ.get("LLM_API_KEY", "unused"),
+        ),
         name="release_manager_agent",
         instruction=INSTRUCTION,
         tools=[ask_deploy_agent_tool],

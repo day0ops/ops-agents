@@ -5,10 +5,10 @@ Flow 1 in docs/superpowers/specs/2026-10-10-auth-pillar-agents-mcp-design.md."""
 import os
 
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 from ops_agent import sts
 from ops_agent.harness import bearer_header_provider, build_app
+from ops_agent.openai_model import OpenAIModel
 
 INSTRUCTION = (
     "You are the Repo Agent. You can list repositories and check pull "
@@ -35,7 +35,11 @@ def build_agent(token: str, mode: str):
         header_provider=bearer_header_provider,
     )
     agent = LlmAgent(
-        model=LiteLlm(model="openai/gpt-4o-mini", api_base=os.environ["LLM_BASE_URL"]),
+        model=OpenAIModel(
+            model=os.environ.get("MODEL", "gpt-4o-mini"),
+            api_base=os.environ["LLM_BASE_URL"],
+            api_key=os.environ.get("LLM_API_KEY", "unused"),
+        ),
         name="repo_agent",
         instruction=INSTRUCTION,
         tools=[toolset],
