@@ -1,8 +1,8 @@
 """Solo STS token-exchange helper. Request shape verified live against the
-running STS: form POST to /oauth2/token with jwt token types, audience, and
-the subject token ALSO repeated as the Authorization header. The STS accepts
-both Keycloak-issued and its own self-issued tokens as subject_token, which
-is what makes the two-hop re-exchange chain work."""
+running STS: form POST to the token endpoint with jwt token types, audience,
+and the subject token ALSO repeated as the Authorization header. The STS
+accepts both Keycloak-issued and its own self-issued tokens as subject_token,
+which is what makes the two-hop re-exchange chain work."""
 import base64
 import json
 
@@ -13,12 +13,12 @@ JWT_TYPE = "urn:ietf:params:oauth:token-type:jwt"
 DEFAULT_SA_TOKEN_PATH = "/var/run/secrets/tokens/sa-token"
 
 
-def exchange(sts_base: str, subject_token: str, actor_token: str,
+def exchange(sts_url: str, subject_token: str, actor_token: str,
              audience: str = "agentgateway", timeout: int = 15) -> str:
     """Exchange subject_token (+ actor_token) at the STS, returning the
-    exchanged access token. sts_base is scheme+host[:port] with no path."""
+    exchanged access token. sts_url is the complete token endpoint URL."""
     resp = requests.post(
-        sts_base.rstrip("/") + "/oauth2/token",
+        sts_url,
         data={
             "grant_type": GRANT,
             "subject_token": subject_token,

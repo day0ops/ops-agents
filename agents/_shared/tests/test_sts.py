@@ -25,7 +25,7 @@ def test_exchange_posts_verified_shape(monkeypatch):
         captured["url"] = url; captured["data"] = data; captured["headers"] = headers
         return FakeResp()
     monkeypatch.setattr(sts.requests, "post", fake_post)
-    out = sts.exchange("http://sts:7777", "subject-tok", "actor-tok")
+    out = sts.exchange("http://sts:7777/oauth2/token", "subject-tok", "actor-tok")
     assert out == "exchanged-token"
     assert captured["url"] == "http://sts:7777/oauth2/token"
     assert captured["data"]["grant_type"] == "urn:ietf:params:oauth:grant-type:token-exchange"
