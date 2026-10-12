@@ -5,14 +5,19 @@ installed package (InMemoryRunner, run_async, types.Content, create_session
 all match the documented shape used below).
 
 agent_factory(token, mode) returns a 3-tuple:
-  - the LlmAgent to run
+  - the LlmAgent to run, or None if the factory already has the complete
+    answer and the LLM must not be invoked at all (e.g. a real consent URL
+    read back from a failed tool connection - letting the model see and
+    re-express it risks paraphrasing or inventing one instead). When None,
+    /run returns `extra` directly, unchanged.
   - bearer: the token to place in session state for header_provider to use.
     This is NOT always `token` verbatim - an agent performing its own STS
     exchange (e.g. Delegation mode, or the two-hop chain's re-exchange)
     computes the exchanged token BEFORE building the agent/session, and
     returns that exchanged value here, so the MCP call carries it.
   - extra: a dict merged into the JSON response (e.g. a decoded delegation
-    chain for the chain-of-custody demo) - {} if unused.
+    chain for the chain-of-custody demo) - {} if unused. When agent is None,
+    this is the full response body and must include "answer".
 """
 import uuid
 from collections.abc import Callable
@@ -47,6 +52,8 @@ def build_app(agent_factory: Callable) -> FastAPI:
     @app.post("/run")
     async def run(req: RunRequest):
         agent, bearer, extra = agent_factory(req.token, req.mode)
+        if agent is None:
+            return extra
         runner = InMemoryRunner(agent=agent, app_name="ops-agent")
         user_id = "demo"
         session_id = str(uuid.uuid4())
