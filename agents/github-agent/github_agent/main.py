@@ -32,17 +32,37 @@ INSTRUCTION = (
 )
 
 
+# A bare probe request isn't enough: agentgateway's MCP layer rejects
+# anything that isn't a well-formed JSON-RPC message with the right Accept
+# header (406, then a deserialize-error 400) before the request ever reaches
+# the backend-auth/elicitation check this probe is trying to trigger -
+# live-verified against the real gateway. This is the smallest body/headers
+# that gets past MCP's own pre-checks and down to that layer.
+_MCP_PROBE_HEADERS = {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+}
+_MCP_PROBE_BODY = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "elicitation-probe", "version": "0.0.1"},
+    },
+}
+
+
 def _pending_elicitation_url(mcp_url: str, token: str) -> str | None:
     """Returns the real consent URL if agentgateway's entElicitation gate is
     blocking this backend for `token`, else None (not pending - proceed with
-    the real MCP connection). A bare probe request is enough to trigger the
-    gate since it's generic backend auth, not MCP-specific."""
+    the real MCP connection)."""
+    headers = dict(_MCP_PROBE_HEADERS)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
-        resp = requests.post(
-            mcp_url,
-            headers={"Authorization": f"Bearer {token}"} if token else {},
-            timeout=10,
-        )
+        resp = requests.post(mcp_url, headers=headers, json=_MCP_PROBE_BODY, timeout=10)
     except requests.RequestException:
         return None
     if resp.status_code != 400:
