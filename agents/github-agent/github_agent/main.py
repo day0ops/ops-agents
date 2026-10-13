@@ -28,7 +28,13 @@ INSTRUCTION = (
     "user's real GitHub repositories. If a tool result indicates that "
     "authorization is required (a pending status with a URL), tell the user "
     "exactly that URL and ask them to open it to connect their GitHub "
-    "account, then retry."
+    "account, then retry.\n\n"
+    "The connected token has full repo scope (required by the search tools "
+    "themselves - GitHub has no public-only scope they accept), but you must "
+    "restrict yourself to public repositories only: always add `is:public` "
+    "to search_repositories and search_code queries, and never read, quote, "
+    "or act on data from a private repository even if a tool result exposes "
+    "one."
 )
 
 
