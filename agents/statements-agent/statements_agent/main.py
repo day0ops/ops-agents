@@ -1,6 +1,6 @@
 """Statements Agent - Elicitation demo (Flow 3). No STS call from this agent
 at all: the user's own Keycloak token is presented to the MCP route (Stripe
-for Brokered mode, GitHub for Interactive - see INSTRUCTION_INTERACTIVE for
+for Brokered mode, PayPal for Interactive - see INSTRUCTION_INTERACTIVE for
 why), and agentgateway's entElicitation backend auth either injects a stored
 real upstream token or returns a pending response with a consent URL - see
 docs/superpowers/specs/2026-10-10-auth-pillar-agents-mcp-design.md Flow 3.
@@ -39,20 +39,22 @@ INSTRUCTION_BROKERED = (
 # (confirmed live: its .well-known/oauth-authorization-server advertises
 # token_endpoint_auth_methods_supported: ["none"] - it never issues a client
 # secret), which Interactive elicitation (a classic static OAuth app) can't
-# use. Interactive is wired to GitHub instead to demonstrate the same
-# mechanism end-to-end; Brokered's DCR+PKCE model is exactly what Stripe
-# expects.
+# use. Interactive is wired to PayPal's sandbox MCP instead - a second real
+# payment processor, confirmed live to support classic confidential clients
+# (token_endpoint_auth_methods_supported includes client_secret_post) -
+# keeping the demo on-theme while Brokered's DCR+PKCE model stays the right
+# fit for Stripe.
 INSTRUCTION_INTERACTIVE = (
-    "You are demonstrating the Interactive elicitation mechanism on behalf of "
-    "the Statements Agent. Stripe's OAuth app only supports dynamic client "
-    "registration with PKCE, which Interactive elicitation (a classic static "
-    "OAuth app) can't use, so this path is wired to GitHub instead to show "
-    "the same mechanism end-to-end. Answer questions about the customer's "
-    "public GitHub repositories by calling your tools; never modify "
-    "anything. If a tool result indicates authorization is required (a "
-    "pending status with a URL), tell the customer exactly that URL and ask "
-    "them to open it to connect their account, then retry. Never fabricate a "
-    "URL or any data."
+    "You are the Statements Agent for a retail bank, answering questions "
+    "about the customer's PayPal transaction history - this demo uses PayPal "
+    "sandbox for Interactive elicitation since Stripe's OAuth app only "
+    "supports dynamic client registration with PKCE, not the classic static "
+    "OAuth app Interactive elicitation needs. Restrict yourself to read-only "
+    "queries; never create, modify, or refund anything. If a tool result "
+    "indicates authorization is required (a pending status with a URL), tell "
+    "the customer exactly that URL and ask them to open it to connect their "
+    "payment account, then retry. Never fabricate a URL or any financial "
+    "data."
 )
 
 
@@ -99,13 +101,12 @@ def _pending_elicitation_url(mcp_url: str, token: str) -> str | None:
 
 def build_agent(token: str, mode: str):
     if mode == "interactive":
-        mcp_url = os.environ["MCP_GITHUB_URL"]
+        mcp_url = os.environ["MCP_PAYPAL_URL"]
         instruction = INSTRUCTION_INTERACTIVE
-        connect_what = "account"
     else:
         mcp_url = os.environ["MCP_STRIPE_URL"]
         instruction = INSTRUCTION_BROKERED
-        connect_what = "payment account"
+    connect_what = "payment account"
 
     pending_url = _pending_elicitation_url(mcp_url, token)
     if pending_url:

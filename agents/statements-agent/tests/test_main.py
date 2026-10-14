@@ -56,30 +56,30 @@ def test_probe_sends_a_well_formed_mcp_request(monkeypatch):
     assert kwargs["json"]["method"] == "initialize"
 
 
-def test_build_agent_uses_github_url_in_interactive_mode(monkeypatch):
+def test_build_agent_uses_paypal_url_in_interactive_mode(monkeypatch):
     # Stripe's OAuth app can't do Interactive (DCR+PKCE only, no client
-    # secret) - interactive mode is wired to GitHub instead.
+    # secret) - interactive mode is wired to PayPal sandbox instead.
     monkeypatch.setenv("LLM_BASE_URL", "http://gw/openai")
-    monkeypatch.setenv("MCP_GITHUB_URL", "http://gw/mcp-github")
+    monkeypatch.setenv("MCP_PAYPAL_URL", "http://gw/mcp-paypal")
     with patch("statements_agent.main.requests.post", return_value=FakeResp(200)) as m:
         agent, bearer, extra = build_agent("user-keycloak-token", "interactive")
     assert agent is not None
     assert bearer == "user-keycloak-token"
     assert extra == {}
     probed_url = m.call_args[0][0]
-    assert probed_url == "http://gw/mcp-github"
+    assert probed_url == "http://gw/mcp-paypal"
 
 
 def test_build_agent_returns_real_consent_url_in_interactive_mode(monkeypatch):
     monkeypatch.setenv("LLM_BASE_URL", "http://gw/openai")
-    monkeypatch.setenv("MCP_GITHUB_URL", "http://gw/mcp-github")
-    real_url = "https://github.com/login/oauth/authorize?client_id=abc123&scope=read%3Auser+repo"
+    monkeypatch.setenv("MCP_PAYPAL_URL", "http://gw/mcp-paypal")
+    real_url = "https://mcp.sandbox.paypal.com/authorize?client_id=abc123&response_type=code"
     with patch("statements_agent.main.requests.post", return_value=FakeResp(400, {"url": real_url})):
         agent, bearer, extra = build_agent("user-keycloak-token", "interactive")
     assert agent is None
     assert bearer == "user-keycloak-token"
     assert real_url in extra["answer"]
-    assert "account" in extra["answer"]
+    assert "payment account" in extra["answer"]
 
 
 def test_build_agent_defaults_to_stripe_for_any_non_interactive_mode(monkeypatch):
