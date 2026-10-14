@@ -1,7 +1,8 @@
 """Statements Agent - Elicitation demo (Flow 3). No STS call from this agent
-at all: the user's own Keycloak token is presented to the Stripe MCP route,
-and agentgateway's entElicitation backend auth either injects a stored real
-Stripe token or returns a pending response with a consent URL - see
+at all: the user's own Keycloak token is presented to the MCP route (Stripe
+for Brokered mode, GitHub for Interactive - see INSTRUCTION_INTERACTIVE for
+why), and agentgateway's entElicitation backend auth either injects a stored
+real upstream token or returns a pending response with a consent URL - see
 docs/superpowers/specs/2026-10-10-auth-pillar-agents-mcp-design.md Flow 3.
 
 Confirmed live against the real deployment: the pending response is a plain
@@ -23,7 +24,7 @@ from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 from ops_agent.harness import bearer_header_provider, build_app
 from ops_agent.openai_model import OpenAIModel
 
-INSTRUCTION = (
+INSTRUCTION_BROKERED = (
     "You are the Statements Agent for a retail bank. You answer questions "
     "about the customer's activity with their external payment processor "
     "(Stripe) - charges, payouts, and balances - by calling your tools. "
@@ -32,6 +33,26 @@ INSTRUCTION = (
     "status with a URL), tell the customer exactly that URL and ask them to "
     "open it to connect their payment account, then retry. Never fabricate a "
     "URL or any financial data."
+)
+
+# Stripe's OAuth app only supports dynamic client registration with PKCE
+# (confirmed live: its .well-known/oauth-authorization-server advertises
+# token_endpoint_auth_methods_supported: ["none"] - it never issues a client
+# secret), which Interactive elicitation (a classic static OAuth app) can't
+# use. Interactive is wired to GitHub instead to demonstrate the same
+# mechanism end-to-end; Brokered's DCR+PKCE model is exactly what Stripe
+# expects.
+INSTRUCTION_INTERACTIVE = (
+    "You are demonstrating the Interactive elicitation mechanism on behalf of "
+    "the Statements Agent. Stripe's OAuth app only supports dynamic client "
+    "registration with PKCE, which Interactive elicitation (a classic static "
+    "OAuth app) can't use, so this path is wired to GitHub instead to show "
+    "the same mechanism end-to-end. Answer questions about the customer's "
+    "public GitHub repositories by calling your tools; never modify "
+    "anything. If a tool result indicates authorization is required (a "
+    "pending status with a URL), tell the customer exactly that URL and ask "
+    "them to open it to connect their account, then retry. Never fabricate a "
+    "URL or any data."
 )
 
 
@@ -77,11 +98,19 @@ def _pending_elicitation_url(mcp_url: str, token: str) -> str | None:
 
 
 def build_agent(token: str, mode: str):
-    mcp_url = os.environ["MCP_STRIPE_URL"]
+    if mode == "interactive":
+        mcp_url = os.environ["MCP_GITHUB_URL"]
+        instruction = INSTRUCTION_INTERACTIVE
+        connect_what = "account"
+    else:
+        mcp_url = os.environ["MCP_STRIPE_URL"]
+        instruction = INSTRUCTION_BROKERED
+        connect_what = "payment account"
+
     pending_url = _pending_elicitation_url(mcp_url, token)
     if pending_url:
         answer = (
-            f"To connect your payment account, open this link: {pending_url}\n\n"
+            f"To connect your {connect_what}, open this link: {pending_url}\n\n"
             "Once you've authorized access, ask me again."
         )
         return None, token, {"answer": answer}
@@ -97,7 +126,7 @@ def build_agent(token: str, mode: str):
             api_key=os.environ.get("LLM_API_KEY", "unused"),
         ),
         name="statements_agent",
-        instruction=INSTRUCTION,
+        instruction=instruction,
         tools=[toolset],
     )
     return agent, token, {}
