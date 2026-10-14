@@ -9,11 +9,11 @@ def _jwt(payload: dict) -> str:
     return f"{seg({'alg':'none'})}.{seg(payload)}.sig"
 
 def test_decode_claims_reads_nested_act():
-    tok = _jwt({"sub": "user", "act": {"sub": "deploy", "act": {"sub": "release-manager"}}})
+    tok = _jwt({"sub": "user", "act": {"sub": "settlement", "act": {"sub": "transfer-orchestrator"}}})
     c = sts.decode_claims(tok)
     assert c["sub"] == "user"
-    assert c["act"]["sub"] == "deploy"
-    assert c["act"]["act"]["sub"] == "release-manager"
+    assert c["act"]["sub"] == "settlement"
+    assert c["act"]["act"]["sub"] == "transfer-orchestrator"
 
 def test_exchange_posts_verified_shape(monkeypatch):
     captured = {}

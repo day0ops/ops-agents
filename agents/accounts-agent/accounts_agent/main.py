@@ -1,0 +1,39 @@
+"""Accounts Agent - reads the customer's own balances and transactions from the
+internal Core Banking MCP. No STS: the user's token is presented as-is and
+agentgateway performs the Impersonation exchange before forwarding (same
+identity, re-signed, no act claim). Read-only."""
+import os
+
+from google.adk.agents import LlmAgent
+from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
+from ops_agent.harness import bearer_header_provider, build_app
+from ops_agent.openai_model import OpenAIModel
+
+INSTRUCTION = (
+    "You are the Accounts Agent for a retail bank. Use your tools to answer "
+    "questions about the customer's own accounts - balances and recent "
+    "transactions. Only report what the tools return. If a tool call is "
+    "denied, say plainly that you are not permitted to access that detail, and "
+    "do not guess or fabricate account numbers or balances."
+)
+
+
+def build_agent(token: str, mode: str):
+    toolset = McpToolset(
+        connection_params=StreamableHTTPConnectionParams(url=os.environ["MCP_CORE_BANKING_URL"]),
+        header_provider=bearer_header_provider,
+    )
+    agent = LlmAgent(
+        model=OpenAIModel(
+            model=os.environ.get("MODEL", "gpt-4o-mini"),
+            api_base=os.environ["LLM_BASE_URL"],
+            api_key=os.environ.get("LLM_API_KEY", "unused"),
+        ),
+        name="accounts_agent",
+        instruction=INSTRUCTION,
+        tools=[toolset],
+    )
+    return agent, token, {}
+
+
+app = build_app(build_agent)

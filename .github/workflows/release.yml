@@ -93,16 +93,16 @@ jobs:
     strategy:
       matrix:
         include:
-          - dir: mcp-servers/repo-server
-            image: repo-server
-          - dir: agents/repo-agent
-            image: repo-agent
-          - dir: agents/release-manager-agent
-            image: release-manager-agent
-          - dir: agents/deploy-agent
-            image: deploy-agent
-          - dir: agents/github-agent
-            image: github-agent
+          - dir: mcp-servers/core-banking
+            image: core-banking
+          - dir: agents/accounts-agent
+            image: accounts-agent
+          - dir: agents/transfer-orchestrator-agent
+            image: transfer-orchestrator-agent
+          - dir: agents/settlement-agent
+            image: settlement-agent
+          - dir: agents/statements-agent
+            image: statements-agent
     permissions:
       contents: read
       id-token: write # required for GCP Workload Identity Federation
@@ -139,11 +139,11 @@ jobs:
         run: |
           set -euo pipefail
           IMAGES=$(cat <<EOF
-          - \`${REGISTRY}/${REPO_PATH}/repo-server:${NEW_TAG}\`
-          - \`${REGISTRY}/${REPO_PATH}/repo-agent:${NEW_TAG}\`
-          - \`${REGISTRY}/${REPO_PATH}/release-manager-agent:${NEW_TAG}\`
-          - \`${REGISTRY}/${REPO_PATH}/deploy-agent:${NEW_TAG}\`
-          - \`${REGISTRY}/${REPO_PATH}/github-agent:${NEW_TAG}\`
+          - \`${REGISTRY}/${REPO_PATH}/core-banking:${NEW_TAG}\`
+          - \`${REGISTRY}/${REPO_PATH}/accounts-agent:${NEW_TAG}\`
+          - \`${REGISTRY}/${REPO_PATH}/transfer-orchestrator-agent:${NEW_TAG}\`
+          - \`${REGISTRY}/${REPO_PATH}/settlement-agent:${NEW_TAG}\`
+          - \`${REGISTRY}/${REPO_PATH}/statements-agent:${NEW_TAG}\`
           EOF
           )
           # tag-and-release already created this release (without images, which don't
