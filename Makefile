@@ -1,4 +1,4 @@
-# Usage: make build SVC=mcp-servers/repo-server IMAGE=repo-server TAG=v0.1.0
+# Usage: make build SVC=mcp-servers/core-banking IMAGE=core-banking TAG=v0.1.0
 # TAG should match the latest git release tag (see .github/workflows/release.yml) -
 # CI always pushes v-prefixed tags, so a manual build should match them.
 REGISTRY ?= australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt

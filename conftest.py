@@ -2,9 +2,9 @@
 is invoked from. pyproject.toml's pythonpath only reaches one directory
 level below the repo root (agents/, mcp-servers/), but each service's
 importable package lives one level below that again (e.g.
-mcp-servers/repo-server/repo_server/) - without this, `python -m pytest`
+mcp-servers/core-banking/core_banking/) - without this, `python -m pytest`
 run from the repo root (as ci.yml and the Makefile's test target do)
-can't resolve `from repo_server...` even though running pytest from
+can't resolve `from core_banking...` even though running pytest from
 inside the service's own directory works fine."""
 import sys
 from pathlib import Path

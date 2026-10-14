@@ -6,12 +6,12 @@ Operational agents and MCP servers for the agentgateway auth-pillar demo.
 
 ```
 agents/              ADK agents, one directory per agent
-  repo-agent/
-  release-manager-agent/
-  deploy-agent/
-  github-agent/
+  accounts-agent/
+  transfer-orchestrator-agent/
+  settlement-agent/
+  statements-agent/
 mcp-servers/          MCP servers
-  repo-server/
+  core-banking/
 ```
 
 Each service directory is self-contained: its own `requirements.txt` (runtime
@@ -31,12 +31,12 @@ pytest -q
 
 Images build from this repo and push to
 `australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/<name>:<tag>`,
-named after their service directory (`repo-server`, `repo-agent`,
-`release-manager-agent`, `deploy-agent`, `github-agent`).
+named after their service directory (`core-banking`, `accounts-agent`,
+`transfer-orchestrator-agent`, `settlement-agent`, `statements-agent`).
 
 ```bash
-make build SVC=mcp-servers/repo-server IMAGE=repo-server TAG=0.1.0
-make push  SVC=mcp-servers/repo-server IMAGE=repo-server TAG=0.1.0
+make build SVC=mcp-servers/core-banking IMAGE=core-banking TAG=0.1.0
+make push  SVC=mcp-servers/core-banking IMAGE=core-banking TAG=0.1.0
 ```
 
 `TAG` defaults to `0.1.0`.
