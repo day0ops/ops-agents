@@ -1,13 +1,13 @@
-"""GitHub Agent - Elicitation demo (Flow 3). No STS call from this agent at
-all: the user's own Keycloak token is presented to the GitHub MCP route, and
-agentgateway's entElicitation backend auth either injects a stored real
-GitHub token or returns a pending response with a consent URL - see
+"""Statements Agent - Elicitation demo (Flow 3). No STS call from this agent
+at all: the user's own Keycloak token is presented to the Stripe MCP route,
+and agentgateway's entElicitation backend auth either injects a stored real
+Stripe token or returns a pending response with a consent URL - see
 docs/superpowers/specs/2026-10-10-auth-pillar-agents-mcp-design.md Flow 3.
 
 Confirmed live against the real deployment: the pending response is a plain
 HTTP 400 with a JSON body `{"url": "..."}`, returned by agentgateway's
 generic backend-auth layer for ANY request reaching this backend while the
-STS has no banked GitHub token yet - not an MCP-level "pending" tool result.
+STS has no banked Stripe token yet - not an MCP-level "pending" tool result.
 Because it happens before the MCP session even initializes, ADK's McpToolset
 treats it as a connection failure and silently drops the toolset (logged,
 not raised), leaving the LLM with no tools and nothing to ground an answer
@@ -24,17 +24,14 @@ from ops_agent.harness import bearer_header_provider, build_app
 from ops_agent.openai_model import OpenAIModel
 
 INSTRUCTION = (
-    "You are the GitHub Agent. Use your tools to answer questions about the "
-    "user's real GitHub repositories. If a tool result indicates that "
-    "authorization is required (a pending status with a URL), tell the user "
-    "exactly that URL and ask them to open it to connect their GitHub "
-    "account, then retry.\n\n"
-    "The connected token has full repo scope (required by the search tools "
-    "themselves - GitHub has no public-only scope they accept), but you must "
-    "restrict yourself to public repositories only: always add `is:public` "
-    "to search_repositories and search_code queries, and never read, quote, "
-    "or act on data from a private repository even if a tool result exposes "
-    "one."
+    "You are the Statements Agent for a retail bank. You answer questions "
+    "about the customer's activity with their external payment processor "
+    "(Stripe) - charges, payouts, and balances - by calling your tools. "
+    "Restrict yourself to read-only queries; never create, modify, or refund "
+    "anything. If a tool result indicates authorization is required (a pending "
+    "status with a URL), tell the customer exactly that URL and ask them to "
+    "open it to connect their payment account, then retry. Never fabricate a "
+    "URL or any financial data."
 )
 
 
@@ -80,11 +77,11 @@ def _pending_elicitation_url(mcp_url: str, token: str) -> str | None:
 
 
 def build_agent(token: str, mode: str):
-    mcp_url = os.environ["MCP_GITHUB_URL"]
+    mcp_url = os.environ["MCP_STRIPE_URL"]
     pending_url = _pending_elicitation_url(mcp_url, token)
     if pending_url:
         answer = (
-            f"To connect your GitHub account, open this link: {pending_url}\n\n"
+            f"To connect your payment account, open this link: {pending_url}\n\n"
             "Once you've authorized access, ask me again."
         )
         return None, token, {"answer": answer}
@@ -99,7 +96,7 @@ def build_agent(token: str, mode: str):
             api_base=os.environ["LLM_BASE_URL"],
             api_key=os.environ.get("LLM_API_KEY", "unused"),
         ),
-        name="github_agent",
+        name="statements_agent",
         instruction=INSTRUCTION,
         tools=[toolset],
     )
