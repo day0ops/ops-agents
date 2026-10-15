@@ -36,3 +36,26 @@ def test_instruction_tells_the_model_to_always_attempt_the_explicit_ask_case():
     assert "call get_account_detail directly" in INSTRUCTION
     assert "always attempt it" in INSTRUCTION
     assert "never decline a request before trying the tool" in INSTRUCTION
+
+
+def test_instruction_has_a_stop_condition_to_avoid_looping():
+    # Observed live: a non-admin user asking for their full account/routing
+    # number triggered 257 identical get_transactions calls over ~4.5
+    # minutes, with the model never producing a final answer - nothing in
+    # the instruction ever told it when to STOP calling tools and answer.
+    # The harness's max_llm_calls cap now bounds this as a last resort, but
+    # the instruction itself should also give the model no reason to loop.
+    assert "at most once per account" in INSTRUCTION
+    assert "never call the same tool again for the same account" in INSTRUCTION
+
+
+def test_instruction_tells_the_model_to_relay_retrieved_data_in_full():
+    # Observed live: the model successfully called get_account_detail, then
+    # still refused to state the numbers it got back ("I was able to access
+    # your account details. However, I am not permitted to reveal..."), with
+    # no tool denial involved - gpt-4o-mini's own caution around
+    # sensitive-looking numbers, not anything the gateway decided. The
+    # instruction must explicitly override that instinct for a successful
+    # call, since "only report what the tools return" alone wasn't enough.
+    assert "state the exact numbers it returned, in full" in INSTRUCTION
+    assert "do not redact, truncate, summarize, or decline to share it" in INSTRUCTION

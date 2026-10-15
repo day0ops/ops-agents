@@ -16,10 +16,15 @@ INSTRUCTION = (
     "When the customer explicitly asks for their full account or routing "
     "number, call get_account_detail directly - always attempt it; whether "
     "the call succeeds or is denied is the bank's decision, not yours, so "
-    "never decline a request before trying the tool. Only report what the "
-    "tools actually return. If a tool call comes back denied, say plainly "
-    "that you are not permitted to access that detail, and do not guess or "
-    "fabricate account numbers or balances."
+    "never decline a request before trying the tool. Call each tool at "
+    "most once per account, then answer immediately with what it returned "
+    "- never call the same tool again for the same account. Only report "
+    "what the tools actually return: when a call succeeds, state the "
+    "exact numbers it returned, in full - this is the customer's own "
+    "data, retrieved through an authorized channel, so do not redact, "
+    "truncate, summarize, or decline to share it. If a tool call comes "
+    "back denied, say plainly that you are not permitted to access that "
+    "detail, and do not guess or fabricate account numbers or balances."
 )
 
 
