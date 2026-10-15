@@ -19,6 +19,8 @@ agent_factory(token, mode) returns a 3-tuple:
     chain for the chain-of-custody demo) - {} if unused. When agent is None,
     this is the full response body and must include "answer".
 """
+import asyncio
+import logging
 import uuid
 from collections.abc import Callable
 
@@ -29,14 +31,28 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import BaseModel
 
+logger = logging.getLogger("ops_agent.harness")
+
 # ADK's own default (RunConfig.max_llm_calls, unset) is 500 - high enough that
-# a model stuck repeating the same tool call runs for minutes before anything
-# stops it (observed live: 257 identical tool calls, ~4.5 minutes, before the
-# wizard's own HTTP client gave up - the agent kept going regardless). Every
-# agent built on this harness answers in a handful of turns at most, so a much
-# tighter cap bounds a runaway loop to seconds instead of minutes without
-# affecting any real exchange.
-MAX_LLM_CALLS_PER_RUN = 10
+# a model stuck repeating the same tool call runs for minutes. Every agent
+# built on this harness reaches its answer in a handful of turns (list_accounts
+# + a couple of get_transactions, or a single transfer/get_account_detail), so
+# a tight cap bounds a runaway loop without affecting any real exchange.
+MAX_LLM_CALLS_PER_RUN = 6
+
+# Hard wall-clock budget for a single /run. The wizard's own HTTP client gives
+# up at 45s (agentgateway-demo-wizard's ops_agent_handler.go), and once the
+# browser-to-wizard connection is dropped the user just sees "Failed to fetch".
+# Returning a clean message well before that is far better than hanging, so the
+# whole run is bounded below the caller's timeout.
+RUN_TIMEOUT_SECONDS = 30
+
+# Separate, short budget for tearing the runner (and its MCP sessions) down.
+# runner.close() walks the agent's McpToolsets and closes each one - without it
+# the MCP Streamable-HTTP SSE stream lingers server-side for minutes as a zombie
+# (observed live: a GET stream held open for 300s after the run). Teardown must
+# never be allowed to hang the response either, so it gets its own ceiling.
+CLOSE_TIMEOUT_SECONDS = 5
 
 
 class RunRequest(BaseModel):
@@ -73,21 +89,42 @@ def build_app(agent_factory: Callable) -> FastAPI:
             state={"bearer_token": bearer, "mode": req.mode},
         )
         message = types.Content(role="user", parts=[types.Part(text=req.query)])
-        final = ""
-        try:
+
+        async def consume() -> str:
+            text = ""
             async for event in runner.run_async(
                 user_id=user_id, session_id=session_id, new_message=message,
                 run_config=RunConfig(max_llm_calls=MAX_LLM_CALLS_PER_RUN),
             ):
                 if event.is_final_response() and event.content and event.content.parts:
-                    final = "".join(
+                    text = "".join(
                         p.text for p in event.content.parts if getattr(p, "text", None)
                     )
+            return text
+
+        final = ""
+        try:
+            final = await asyncio.wait_for(consume(), timeout=RUN_TIMEOUT_SECONDS)
         except LlmCallsLimitExceededError:
             final = (
                 "I wasn't able to finish answering that within the usual number of "
                 "steps. Please try rephrasing the question."
             )
+        except asyncio.TimeoutError:
+            final = (
+                "That request took longer than expected, so I stopped it. "
+                "Please try again."
+            )
+        finally:
+            # Always tear the runner (and its MCP sessions) down, even on
+            # timeout or error - otherwise the MCP SSE stream lingers as a
+            # zombie. close() must not be allowed to hang the response either,
+            # so bound it and swallow any teardown error.
+            try:
+                await asyncio.wait_for(runner.close(), timeout=CLOSE_TIMEOUT_SECONDS)
+            except Exception as err:
+                logger.warning("runner.close() did not complete cleanly: %s", err)
+
         return {"answer": final, **extra}
 
     return app
