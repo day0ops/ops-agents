@@ -23,9 +23,20 @@ import uuid
 from collections.abc import Callable
 
 from fastapi import FastAPI
+from google.adk.agents import RunConfig
+from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import BaseModel
+
+# ADK's own default (RunConfig.max_llm_calls, unset) is 500 - high enough that
+# a model stuck repeating the same tool call runs for minutes before anything
+# stops it (observed live: 257 identical tool calls, ~4.5 minutes, before the
+# wizard's own HTTP client gave up - the agent kept going regardless). Every
+# agent built on this harness answers in a handful of turns at most, so a much
+# tighter cap bounds a runaway loop to seconds instead of minutes without
+# affecting any real exchange.
+MAX_LLM_CALLS_PER_RUN = 10
 
 
 class RunRequest(BaseModel):
@@ -63,11 +74,20 @@ def build_app(agent_factory: Callable) -> FastAPI:
         )
         message = types.Content(role="user", parts=[types.Part(text=req.query)])
         final = ""
-        async for event in runner.run_async(
-            user_id=user_id, session_id=session_id, new_message=message,
-        ):
-            if event.is_final_response() and event.content and event.content.parts:
-                final = "".join(p.text for p in event.content.parts if getattr(p, "text", None))
+        try:
+            async for event in runner.run_async(
+                user_id=user_id, session_id=session_id, new_message=message,
+                run_config=RunConfig(max_llm_calls=MAX_LLM_CALLS_PER_RUN),
+            ):
+                if event.is_final_response() and event.content and event.content.parts:
+                    final = "".join(
+                        p.text for p in event.content.parts if getattr(p, "text", None)
+                    )
+        except LlmCallsLimitExceededError:
+            final = (
+                "I wasn't able to finish answering that within the usual number of "
+                "steps. Please try rephrasing the question."
+            )
         return {"answer": final, **extra}
 
     return app
