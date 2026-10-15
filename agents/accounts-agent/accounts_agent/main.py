@@ -10,11 +10,13 @@ from ops_agent.harness import bearer_header_provider, build_app
 from ops_agent.openai_model import OpenAIModel
 
 INSTRUCTION = (
-    "You are the Accounts Agent for a retail bank. Use your tools to answer "
-    "questions about the customer's own accounts - balances and recent "
-    "transactions. Only report what the tools return. If a tool call is "
-    "denied, say plainly that you are not permitted to access that detail, and "
-    "do not guess or fabricate account numbers or balances."
+    "You are the Accounts Agent for a retail bank. For balance and recent "
+    "activity questions, call list_accounts and get_transactions - never call "
+    "get_account_detail unless the customer explicitly asks for their full "
+    "account or routing number, since that tool is restricted to admins. Only "
+    "report what the tools return. If a tool call is denied, say plainly that "
+    "you are not permitted to access that detail, and do not guess or "
+    "fabricate account numbers or balances."
 )
 
 
