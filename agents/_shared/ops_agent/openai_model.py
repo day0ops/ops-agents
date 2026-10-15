@@ -71,6 +71,36 @@ def _content_to_messages(content: types.Content) -> list[dict]:
     return [message]
 
 
+def _repair_tool_call_ids(messages: list[dict]) -> list[dict]:
+    """Ensure every tool call and its result carry a matching, non-empty id.
+
+    The OpenAI chat API pairs a tool result to its call by id. ADK only keeps
+    those ids for the few model types it recognizes as id-pairing (Anthropic,
+    its own OpenAI Responses integration, LiteLLM) - this hand-rolled model
+    isn't one of them, so on replay ADK strips its fallback ids and we receive
+    empty ones. An empty id means the model can't see that its call was
+    answered, so it calls the same tool again, forever (observed live: the
+    Accounts Agent looping on get_account_detail until the step cap fired).
+
+    Calls and their results alternate in order, so fill any missing id by
+    position - the i-th tool call and the i-th tool result get the same
+    synthetic id - while leaving real ids untouched.
+    """
+    call_index = 0
+    result_index = 0
+    for message in messages:
+        if message.get("role") == "assistant":
+            for tool_call in message.get("tool_calls") or ():
+                if not tool_call.get("id"):
+                    tool_call["id"] = f"call_{call_index}"
+                call_index += 1
+        elif message.get("role") == "tool":
+            if not message.get("tool_call_id"):
+                message["tool_call_id"] = f"call_{result_index}"
+            result_index += 1
+    return messages
+
+
 def _request_to_messages(llm_request: LlmRequest) -> list[dict]:
     messages = []
     system_instruction = llm_request.config.system_instruction if llm_request.config else None
@@ -84,7 +114,7 @@ def _request_to_messages(llm_request: LlmRequest) -> list[dict]:
             messages.append({"role": "system", "content": text})
     for content in llm_request.contents:
         messages.extend(_content_to_messages(content))
-    return messages
+    return _repair_tool_call_ids(messages)
 
 
 def _response_message_to_content(message) -> types.Content:

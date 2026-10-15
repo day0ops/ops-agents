@@ -4,7 +4,7 @@ import json
 from google.adk.models.llm_request import LlmRequest
 from google.adk.tools.base_tool import BaseTool
 from google.genai import types
-from ops_agent.openai_model import OpenAIModel
+from ops_agent.openai_model import OpenAIModel, _repair_tool_call_ids
 
 
 def _run(coro):
@@ -217,3 +217,57 @@ def test_sends_function_response_as_tool_message():
     assert tool_message["role"] == "tool"
     assert tool_message["tool_call_id"] == "call_1"
     assert json.loads(tool_message["content"]) == {"repos": ["a"]}
+
+
+def test_repair_pairs_missing_tool_call_ids_by_position():
+    # Regression: a missing id on a tool call and its result means the OpenAI
+    # API can't pair them, so the model never sees the result and re-calls the
+    # same tool forever (observed live as the Accounts Agent looping until the
+    # step cap fired). Missing ids must be filled with a matching pair.
+    messages = [
+        {"role": "user", "content": "q"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {"id": "", "type": "function",
+                 "function": {"name": "get_account_detail", "arguments": "{}"}}
+            ],
+        },
+        {"role": "tool", "tool_call_id": "", "content": "result"},
+    ]
+    _repair_tool_call_ids(messages)
+    call_id = messages[1]["tool_calls"][0]["id"]
+    assert call_id != ""
+    assert messages[2]["tool_call_id"] == call_id
+
+
+def test_repair_leaves_real_ids_untouched():
+    messages = [
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {"id": "call_abc", "type": "function",
+                 "function": {"name": "t", "arguments": "{}"}}
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_abc", "content": "r"},
+    ]
+    _repair_tool_call_ids(messages)
+    assert messages[0]["tool_calls"][0]["id"] == "call_abc"
+    assert messages[1]["tool_call_id"] == "call_abc"
+
+
+def test_repair_pairs_multiple_turns_distinctly_and_in_order():
+    messages = [
+        {"role": "assistant", "tool_calls": [
+            {"id": "", "type": "function", "function": {"name": "t", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "", "content": "r0"},
+        {"role": "assistant", "tool_calls": [
+            {"id": "", "type": "function", "function": {"name": "t", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "", "content": "r1"},
+    ]
+    _repair_tool_call_ids(messages)
+    assert messages[0]["tool_calls"][0]["id"] == messages[1]["tool_call_id"]
+    assert messages[2]["tool_calls"][0]["id"] == messages[3]["tool_call_id"]
+    assert messages[0]["tool_calls"][0]["id"] != messages[2]["tool_calls"][0]["id"]
