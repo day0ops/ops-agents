@@ -122,7 +122,7 @@ def build_app(agent_factory: Callable) -> FastAPI:
             # so bound it and swallow any teardown error.
             try:
                 await asyncio.wait_for(runner.close(), timeout=CLOSE_TIMEOUT_SECONDS)
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001 - teardown must never break the response
                 logger.warning("runner.close() did not complete cleanly: %s", err)
 
         return {"answer": final, **extra}
