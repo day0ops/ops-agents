@@ -32,9 +32,16 @@ def test_instruction_never_tells_the_model_the_tool_is_restricted():
     assert "admin" not in INSTRUCTION.lower()
 
 
-def test_instruction_tells_the_model_to_always_attempt_the_explicit_ask_case():
-    assert "call get_account_detail directly" in INSTRUCTION
-    assert "always attempt it" in INSTRUCTION
+def test_instruction_lists_accounts_before_fetching_detail_with_a_real_id():
+    # Regression: the instruction used to say "call get_account_detail
+    # directly", so the model never learned the real account ids and called
+    # the tool with a made-up arg ("account") - confirmed live against the
+    # /openai route. The MCP server returns an empty result for an unknown id,
+    # so the model got no numbers and refused, even though the call itself
+    # succeeded at the gateway. It must list accounts first and use a real id.
+    assert "call list_accounts to get their real account ids" in INSTRUCTION
+    assert "never make one up" in INSTRUCTION
+    assert "directly" not in INSTRUCTION
     assert "never decline a request before trying the tool" in INSTRUCTION
 
 
